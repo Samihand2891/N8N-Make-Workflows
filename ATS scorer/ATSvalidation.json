@@ -1,0 +1,235 @@
+{
+  "name": "ATSvalidation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/ats-optimiser",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0f3e7a66-700f-4fe5-9df4-1f98310eef6a",
+      "name": "Webhook",
+      "webhookId": "c8fdd773-e6dc-4b14-bb2c-ccf38d505355",
+      "notes": "Connect to telegram"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { cv, jd } = $input.first().json;\n\nconst prompt = `\nYou are an expert ATS optimization specialist.\n\nAnalyze the following CV against the job description and return a JSON object with:\n1. \"missing_keywords\": array of important keywords from the JD absent in the CV\n2. \"rewritten_profile\": a rewritten professional summary optimized for this role\n3. \"tailored_bullets\": 5 rewritten bullet points from the CV aligned to the JD\n4. \"cover_letter\": a concise, tailored cover letter (3 paragraphs)\n5. \"ats_score_estimate\": integer 0-100 estimating ATS match before optimization\n\nJOB DESCRIPTION:\n${jd}\n\nCV:\n${cv}\n\nReturn ONLY valid JSON, no markdown fences.\n`;\n\nreturn [{ json: { prompt } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        208
+      ],
+      "id": "60ec6426-760b-4126-9a91-a7afbac32a94",
+      "name": "Prompt Engineer"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nif (!body.cv || !body.job_description) {\n  throw new Error(\"Missing cv or job_description in payload\");\n}\nreturn [{ json: { cv: body.cv.trim(), jd: body.job_description.trim() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "97f34964-9392-40b5-888e-aa6dffeeceb5",
+      "name": "Input Validator"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBLsfMpLG5GwxnA34q0PuPz6bxMqApheEA",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [{ \"text\": \"{{ $json.code }}\" }]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3,\n    \"maxOutputTokens\": 4096\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        800,
+        208
+      ],
+      "id": "8781731e-9b4e-4eb3-9736-4ce53283307c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.candidates[0].content.parts[0].text;\nlet parsed;\ntry {\n  parsed = JSON.parse(raw.replace(/```json|```/g, \"\").trim());\n} catch (e) {\n  throw new Error(\"Gemini response was not valid JSON: \" + raw.substring(0, 200));\n}\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        80
+      ],
+      "id": "ac83ac64-705e-4431-8fa4-d4c5bec0a232",
+      "name": "Response parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst missing = data.missing_keywords?.length || 0;\nconst score = data.ats_score_estimate || 0;\nconst verdict = score >= 75 ? \"STRONG\" : score >= 50 ? \"MODERATE\" : \"WEAK\";\n\nreturn [{ json: { ...data, verdict, missing_count: missing } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        80
+      ],
+      "id": "28123d5d-89ef-45a3-b7e4-a4e1582a6d29",
+      "name": "ATS SCORER"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{\n  json: {\n    ats_score: d.ats_score_estimate,\n    verdict: d.verdict,\n    missing_keywords: d.missing_keywords,\n    missing_count: d.missing_count,\n    rewritten_profile: d.rewritten_profile,\n    tailored_bullets: d.tailored_bullets,\n    cover_letter: d.cover_letter\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        432
+      ],
+      "id": "68f1060c-56e1-41ed-a286-f0849d790007",
+      "name": "Output Formatter"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{{ $json==output\n}}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1648,
+        432
+      ],
+      "id": "314b71cc-1679-4ede-879b-6ce1d95b3e60",
+      "name": "API Response"
+    }
+  ],
+  "pinData": {
+    "Prompt Engineer": [
+      {
+        "json": {
+          "name": "First item",
+          "code": 1
+        }
+      },
+      {
+        "json": {
+          "name": "Second item",
+          "code": 2
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Input Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Validator": {
+      "main": [
+        [
+          {
+            "node": "Prompt Engineer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Engineer": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Response parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response parser": {
+      "main": [
+        [
+          {
+            "node": "ATS SCORER",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ATS SCORER": {
+      "main": [
+        [
+          {
+            "node": "Output Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Formatter": {
+      "main": [
+        [
+          {
+            "node": "API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e93113f4-759b-497c-b3f6-f98bd199a8da",
+  "meta": {
+    "instanceId": "c8fa2e3132ab2cd6bc6ed5a823f97f8374e5db2edaa052c6df837f46e28fdebf"
+  },
+  "id": "qyGTFZnltUv6QTSu",
+  "tags": [
+    {
+      "updatedAt": "2026-04-04T17:41:35.280Z",
+      "createdAt": "2026-04-04T17:41:35.280Z",
+      "id": "FZgHpzoQwOMx7Kxs",
+      "name": "Model"
+    }
+  ]
+}
