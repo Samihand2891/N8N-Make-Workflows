@@ -1,11 +1,13 @@
 #### TO activate using command prompt , give path directory of cv , job description .txt files
-$cv = Get-Content cv.txt -Raw
-$jd = Get-Content jd.txt -Raw
+`$cv = Get-Content cv.txt -Raw`
+`$jd = Get-Content jd.txt -Raw`
 
-$body = @{
+`$body = @{`
+
     cv = $cv
     job_description = $jd
-} | ConvertTo-Json
+`}` 
+| ConvertTo-Json
 
 Invoke-RestMethod -Uri "http://localhost:5678/webhook/ats-optimizer" `
   -Method POST `
