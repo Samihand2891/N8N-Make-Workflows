@@ -48,7 +48,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBLsfMpLG5GwxnA34q0PuPz6bxMqApheEA",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{yourmodel}:generateContent?key=YOUR_API_TOKEN",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [{ \"text\": \"{{ $json.code }}\" }]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3,\n    \"maxOutputTokens\": 4096\n  }\n}",
